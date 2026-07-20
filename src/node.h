@@ -4,7 +4,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-
 typedef struct Node {
     int weight;
     char symbol;
@@ -12,6 +11,8 @@ typedef struct Node {
     struct Node *nodeRight;
 } Node;
 
-Node *findNode(char symbol, Node* node_list, int node_list_length);
+void printNode(Node *node);
 
-int countSymbolFrequency(char *buffer, int buffer_size, Node **node_list, int *node_list_length);
+Node *createNode(char symbol, int weight, Node* left, Node* right);
+
+Node *mergeNodes(Node* left, Node * right);

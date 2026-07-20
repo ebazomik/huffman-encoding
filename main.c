@@ -1,27 +1,13 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "node.h"
-#include "tree.h"
-#include "utils.h"
-
-
-// TODO
-//
-// STEP 1
-// Find every symbol used in message - ok
-// Find frequency of every symbol used in message - ok
-// Order list of symbol in ascending Order - ok
-//
-// STEP 2
-// Order all symbols in binary tree
-//
-// STEP 3
-// Huffman encoding for every symbol
+#include "src/tree.h"
+#include "src/node_list.h"
 
 int main(int argc, char **argv) {
 
@@ -30,50 +16,49 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  errno = 0;
+  size_t exit_status = EXIT_SUCCESS;
+
+  long page_size = sysconf(_SC_PAGESIZE);
+  char read_buffer[page_size];
+
+  NodeList *node_list = NULL;
+
   int file_fd = open(argv[1], O_RDONLY);
   if (file_fd == -1) {
     printf("Error while trying open [%s]: %s\n", argv[1], strerror(errno));
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
-  int page_size = sysconf(_SC_PAGESIZE);
-  Node *node_list = NULL;
-  int node_list_length = 0;
+  node_list = createNodeList();
+  if(node_list == NULL) {
+      exit_status = EXIT_FAILURE;
+      goto clean;
+  }
 
-  char read_buffer[page_size];
-  int bytes_read = 0;
+  ssize_t bytes_read = 0;
+  while ((bytes_read = read(file_fd, read_buffer, page_size)) > 0) {
 
-  // In this loop iterate through readed buffer from file.
-  // Check if symbol exist in Node form inside symbol_list, if exist increase
-  // the wheight value. If not exist, realloc symbol_list space and create new
-  // Node with current symbol and set weight to 1. This process permit to create
-  // a list with n Node that rapreset every char use in file and relative amount
-  // of usage.
-  while ((bytes_read = read(file_fd, read_buffer, page_size)) != 0) {
-
-    int err = countSymbolFrequency(read_buffer, page_size, &node_list, &node_list_length);
-
+    int err = buildFrequencyList(read_buffer, bytes_read, node_list);
     if (err) {
-      close(file_fd);
-      free(node_list);
-      exit(EXIT_FAILURE);
+        exit_status = EXIT_FAILURE;
+        goto clean;
     }
   }
 
-  qsort(node_list, node_list_length, sizeof(Node), compareByWeight);
-
-  printNodeList(node_list, node_list_length);
-
-  int symbol_list_check = 2;
-
-  while (symbol_list_check > 1) {
-    printf("symbol_list_check %d \n", symbol_list_check);
-    symbol_list_check =
-        buildTree(node_list, node_list_length, compareByWeight);
+  if (bytes_read == -1) {
+      printf("Error on bytes_read\n");
+      goto clean;
   }
 
-  printNodeList(node_list, node_list_length);
 
-  close(file_fd);
+  if(buildTree(node_list) != 0){
+      exit_status = EXIT_FAILURE;
+      goto clean;
+  }
+
+  clean:
+    close(file_fd);
+    if(node_list != NULL)
+        freeNodeList(node_list);
+    return exit_status;
 }
